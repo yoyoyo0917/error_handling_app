@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>SymPy 計算フォーム</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    textarea { width: 100%; height: 6rem; }
+    input[type=text] { width: 100%; }
+    .error { color: crimson; }
+  </style>
+  <script type="text/javascript" async
+    src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js">
+  </script>
+</head>
+<body>
+  <h1>式の誤差伝搬計算</h1>
+
+  <div id="messages" class="error" style="display: none;"></div>
+
+  <form method="post">
+    <label>誤差を求めたい式 (例: 3 * x ** 2 + 4 * y ** 3 + 1 / z)</label><br>
+    <input type="text" name="formula" placeholder="例: 3 * x ** 2 + 4 * y ** 3 + 1 / z" required><br><br>
+
+    <label>変数を追加:</label><br>
+    <button type="button" id="add-param">変数を追加</button><br><br>
+    <div id="params-container"></div>
+
+    <label>変数値（xに値、dxにxの誤差の値を入力）</label><br>
+    <div id="vals-container"></div><br><br>
+
+    <button type="submit">計算</button>
+  </form>
+
+  <div id="result" style="margin-top: 20px;">
+    <h2>計算結果</h2>
+    <p><strong>元の式:</strong> <span id="originformula"></span><button id="copyoriginTexButton">LaTeXコードをコピー</button></p>
+    <p hidden><strong>TeX形式:</strong> <span id="tex_originformula"></span></p>
+    <p><strong>誤差の式:</strong> <span id="formula"></span><button id="copyTexButton">LaTeXコードをコピー</button></p>
+    <p hidden><strong>TeX形式:</strong> <span id="tex_formula"></span></p>
+    <p><strong>各値:</strong> <span id="vals"></span></p>
+    <p><strong>誤差値:</strong> <span id="resultValue"></span></p>
+  </div>
+
+  <script>
+    const form = document.querySelector('form');
+    const paramsInput = document.getElementById('params');
+    const valsContainer = document.getElementById('vals-container');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const formula = form.formula.value;
+      const params = Array.from(document.querySelectorAll('#params-container input'))
+          .map(input => input.value.trim())
+          .filter(Boolean);
+      const vals = JSON.stringify(
+        Array.from(valsContainer.querySelectorAll('input'))
+          .reduce((acc, input) => {
+            acc[input.name] = input.value;
+            return acc;
+          }, {})
+      );
+
+      try {
+        const data = await window.electronAPI.calculate(formula, params, vals);
+
+        document.getElementById('formula').innerHTML = `$$${data.tex_formula}$$`;
+        document.getElementById('tex_formula').textContent = String(data.tex_formula);
+        document.getElementById('originformula').textContent = `$$${data.tex_originformula}$$`;
+        document.getElementById('tex_originformula').textContent = String(data.tex_originformula);
+        MathJax.typeset();
+        MathJax.typeset();
+        document.getElementById('vals').textContent = JSON.stringify(data.vals, null, 2);
+        console.log("POST data sent:", { formula, params, vals });
+        document.getElementById('resultValue').textContent = String(data.result);
+      } catch (error) {
+        console.error("Error calling calculate:", error);
+        alert("計算中にエラーが発生しました：" + error);
+      }
+       document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+       document.getElementById('copyTexButton').addEventListener('click', () => {
+         const texFormula = document.getElementById('tex_formula').textContent;
+         navigator.clipboard.writeText(texFormula)
+           .then(() => alert('LaTeXコードをコピーしました！'))
+           .catch(err => alert('コピーに失敗しました: ' + err));
+       });
+       document.getElementById('copyoriginTexButton').addEventListener('click', () => {
+         const texFormula = document.getElementById('tex_originformula').textContent;
+         navigator.clipboard.writeText(texFormula)
+           .then(() => alert('LaTeXコードをコピーしました！'))
+           .catch(err => alert('コピーに失敗しました: ' + err));
+       });
+    });
+  </script>
+</body>
+</html>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const paramsContainer = document.getElementById("params-container");
+    const valsContainer = document.getElementById("vals-container");
+    const addParamButton = document.getElementById("add-param");
+
+    function addParamInput() {
+        const paramDiv = document.createElement("div");
+        const paramInput = document.createElement("input");
+        paramInput.type = "text";
+        paramInput.name = "params[]";
+        paramInput.placeholder = "変数名";
+        paramInput.required = false;
+        paramDiv.appendChild(paramInput);
+        paramsContainer.appendChild(paramDiv);
+
+        paramInput.addEventListener("input", () => {
+            updateValsContainer();
+        });
+
+        // フォーカスを新しい入力ボックスに移動
+        paramInput.focus();
+    }
+
+    addParamButton.addEventListener("click", () => {
+        addParamInput();
+    });
+
+    // Tabキーで新しい入力ボックスを追加
+    paramsContainer.addEventListener("keydown", (event) => {
+        if (event.key === "Tab") {
+            const inputs = Array.from(paramsContainer.querySelectorAll("input"));
+            const lastInput = inputs[inputs.length - 1];
+
+            // 一番下の入力ボックスにフォーカスがある場合のみ新しいボックスを追加
+            if (event.target === lastInput) {
+                event.preventDefault(); // デフォルトのTab動作を無効化
+                addParamInput();
+            }
+        }
+    });
+
+    function updateValsContainer() {
+        valsContainer.innerHTML = "";
+        const params = Array.from(paramsContainer.querySelectorAll("input")).map(input => input.value.trim()).filter(Boolean);
+
+        params.forEach(param => {
+            const inputX = document.createElement("input");
+            inputX.required = true;
+            inputX.type = "text";
+            inputX.name = `${param}`;
+            inputX.placeholder = `${param}`;
+            valsContainer.appendChild(inputX);
+
+            const inputDx = document.createElement("input");
+            inputDx.required = true;
+            inputDx.type = "text";
+            inputDx.name = `d${param}`;
+            inputDx.placeholder = `d${param}`;
+            valsContainer.appendChild(inputDx);
+
+            valsContainer.appendChild(document.createElement("br"));
+        });
+    }
+
+    paramsInput.addEventListener("input", () => {
+      const params = paramsInput.value.split(",").map(param => param.trim());
+      valsContainer.innerHTML = ""; // Clear existing forms
+
+      params.forEach(param => {
+        if (param) {
+          // Create input for x
+          const inputX = document.createElement("input");
+          inputX.required = true;
+          inputX.type = "text";
+          inputX.name = `${param}`;
+          inputX.placeholder = `${param}`;
+          valsContainer.appendChild(inputX);
+
+          // Create input for dx
+          const inputDx = document.createElement("input");
+          inputDx.required = true;
+          inputDx.type = "text";
+          inputDx.name = `d${param}`;
+          inputDx.placeholder = `d${param}`;
+          valsContainer.appendChild(inputDx);
+
+          // Add a line break
+          valsContainer.appendChild(document.createElement("br"));
+        }
+      });
+    });
+  });
+</script>
+
+<!-- Duplicate form removed -->

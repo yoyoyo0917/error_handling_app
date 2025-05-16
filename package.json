@@ -1,0 +1,41 @@
+{
+  "name": "error_handling_app",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "electron-builder"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "electron": "^36.2.1",
+    "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "python-shell": "^5.0.0",
+    "request": "^2.88.2"
+  },
+  "type": "module",
+  "build": {
+    "appId": "com.errorhandling.app",
+    "productName": "ErrorHandlingApp",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/.bin",
+      "!**/*.map",
+      "!.venv/**"
+    ],
+    "extraMetadata": {
+      "main": "index.js"
+    }
+  }
+}
